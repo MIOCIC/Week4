@@ -1,63 +1,68 @@
 package hr.dream.factory.learning.apis;
 import feign.Feign;
+import feign.Headers;
 import feign.Param;
 import feign.RequestLine;
 import feign.gson.GsonDecoder;
 
+import java.util.ArrayList;
 import java.util.List;
 
 interface GitHubApi {
-    @RequestLine("GET /users/{owner}/repos")
-    List<Repo> repos(@Param("owner") String owner);
 
-    @RequestLine("GET /repos/{owner}/{repo}/commits")
-    List<Commit> commits(@Param("owner") String owner, @Param("repo") String repo);
+    @Headers("Authorization: {token}")
+    @RequestLine("GET /users/{owner}/repos?page={page}")
+    List<Repo> repos(@Param("owner") String owner, @Param("token") String token, @Param("page") int page);
 
+    @Headers("Authorization: {token}")
+    @RequestLine("GET /repos/{owner}/{repo}/commits?page={page}&author={owner}")
+    List<Commit> commits(@Param("owner") String owner, @Param("repo") String repo, @Param("token") String token, @Param("page") int page);
+
+    @Headers("Authorization: {token}")
     @RequestLine("GET /repos/{owner}/{repo}/commits/{commitSha}")
-    CommitDetails commitDetails(@Param("owner") String owner, @Param("repo") String repo, @Param("commitSha") String commitSha);
+    CommitDetails commitDetails(@Param("owner") String owner, @Param("repo") String repo, @Param("commitSha") String commitSha, @Param("token") String token);
 }
 
 //https://api.github.com/repos/MIOCIC/Week4/contributors
 
-/*class MyApp2 {
-    public static void main(String... args) {
-        GitHubApi github = Feign.builder()
-                .decoder(new GsonDecoder())
-                .target(GitHubApi.class, "https://api.github.com");
-
-        // Fetch and print a list of the contributors to this library.
-        List<Repo> repos = github.repos("MIOCIC");
-        List<Contributor> contributors = github.contributors("MIOCIC", "Week4");
-        for (Repo repo : repos) {
-            System.out.println(repo.login + " " + repo.name + " " + repo.full_name + " " + repo.url );
-        }
-    }
-}
-
- */
 public class GitHubFetcher {
     private GitHubApi api;
+    private String token = "token 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";
     public GitHubFetcher(){
         this.api = Feign.builder()
                 .decoder(new GsonDecoder())
                 .target(GitHubApi.class, "https://api.github.com");
     }
     public List<Repo> fetchAllReposForUser(String user){
-        return this.api.repos(user);
-    }
-    public List<Commit> getCommit(String user, String repo){
-        return this.api.commits(user, repo);
+        List<Repo> repoList = new ArrayList<>();
+        int page = 1;
+        List<Repo> repos = this.api.repos(user, token, page);
 
+        while (!repos.isEmpty()) {
+            repoList.addAll(repos);
+            page++;
+            repos = this.api.repos(user, token, page);
+        }
+        return repoList;
+    }
+
+
+    public List<Commit> getCommit(String user, String repo){
+        List<Commit> commitList = new ArrayList<>();
+        int page = 1;
+        List<Commit> commits = this.api.commits(user, repo, token, page);
+
+        while (true) {
+            if (!!commits.isEmpty()) break;
+            commitList.addAll(commits);
+            page++;
+            commits = this.api.commits(user, repo, token, page);
+        }
+        return commitList;
     }
 
     public CommitDetails getSingleCommit(String user, String repo, String commitSha){
-        /*List<Commit> commitList = getCommit(user, repo);
-        Commit commit = commitList.stream()
-                .filter(t -> t.sha.equals(commitSha))
-                .findFirst()
-                .orElse(null);
-        return commit;*/
-        return this.api.commitDetails(user,repo,commitSha);
+        return this.api.commitDetails(user,repo,commitSha, token);
     }
 
 }
